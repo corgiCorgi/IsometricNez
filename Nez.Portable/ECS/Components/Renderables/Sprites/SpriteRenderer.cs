@@ -91,14 +91,16 @@ namespace Nez.Sprites
 		protected Vector2 _origin;
 		protected Sprite _sprite;
 
-
 		public SpriteRenderer()
 		{ }
 
 		public SpriteRenderer(Texture2D texture) : this(new Sprite(texture))
 		{ }
 
-		public SpriteRenderer(Sprite sprite) => SetSprite(sprite);
+		public SpriteRenderer(Sprite sprite) 
+		{
+			SetSprite(sprite);
+		}
 
 		#region fluent setters
 

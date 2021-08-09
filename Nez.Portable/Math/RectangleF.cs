@@ -820,6 +820,26 @@ namespace Nez
 			}
 		}
 
+		public void CalculateIsometricBounds(Vector2 parentPosition, Vector2 position, Vector2 origin, Vector2 scale,
+									float rotation, float tileWidth, float tileHeight, float widthScalar, float heightScalar)
+		{
+			//Seems to be extremely rough right now
+			if (rotation == 0f)
+			{
+				Vector2 sum = parentPosition + position;
+				X = parentPosition.X + position.X - origin.X * scale.X - tileWidth*scale.X*widthScalar/2;
+				Y = parentPosition.Y + position.Y - origin.Y * scale.Y;
+				Width = tileWidth * scale.X *widthScalar/2 + tileHeight*scale.X*widthScalar/2;
+				Height = tileWidth * scale.Y * heightScalar/2 + tileHeight * scale.Y * heightScalar/2;
+			}
+			else //No handling for rotation yet
+			{
+				CalculateBounds(parentPosition, position, origin, scale,
+									rotation, tileWidth*widthScalar, tileHeight*heightScalar);
+			}
+
+
+		}
 
 		/// <summary>
 		/// returns a RectangleF that spans the current rect and the provided delta positions

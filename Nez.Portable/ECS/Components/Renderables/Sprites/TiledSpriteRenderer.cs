@@ -94,6 +94,7 @@ namespace Nez
 			}
 		}
 
+
 		/// <summary>
 		/// we keep a copy of the sourceRect so that we dont change the Sprite in case it is used elsewhere
 		/// </summary>
@@ -124,6 +125,7 @@ namespace Nez
 		{
 			if (_sprite == null)
 				return;
+
 
 			var topLeft = Entity.Transform.Position + _localOffset;
 			var destinationRect = RectangleExt.FromFloats(topLeft.X, topLeft.Y,

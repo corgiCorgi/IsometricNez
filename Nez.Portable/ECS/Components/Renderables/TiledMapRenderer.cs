@@ -19,11 +19,33 @@ namespace Nez
 		public override float Width => TiledMap.Width * TiledMap.TileWidth;
 		public override float Height => TiledMap.Height * TiledMap.TileHeight;
 
+		public override RectangleF Bounds
+		{
+			get
+			{
+				if (_areBoundsDirty)
+				{
+					if (TiledMap.Orientation != OrientationType.Isometric)
+					{
+						_bounds.CalculateBounds(Entity.Transform.Position, _localOffset, Vector2.Zero,
+						Entity.Transform.Scale, Entity.Transform.Rotation, Width, Height);
+					}
+					else
+					{
+						_bounds.CalculateIsometricBounds(Entity.Transform.Position, _localOffset, Vector2.Zero,
+						Entity.Transform.Scale, Entity.Transform.Rotation, TiledMap.Width, TiledMap.Height, TiledMap.TileWidth, TiledMap.TileHeight);
+
+					}
+					_areBoundsDirty = false;
+				}
+				return _bounds;
+			}
+		}
+
 		public TmxLayer CollisionLayer;
 
 		bool _shouldCreateColliders;
 		Collider[] _colliders;
-
 
 		public TiledMapRenderer(TmxMap tiledMap, string collisionLayerName = null, bool shouldCreateColliders = true)
 		{

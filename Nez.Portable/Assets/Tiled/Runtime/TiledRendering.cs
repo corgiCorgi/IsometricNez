@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System;
 
 namespace Nez.Tiled
 {
@@ -99,36 +100,67 @@ namespace Nez.Tiled
 			var tileHeight = layer.Map.TileHeight * scale.Y;
 
 			int minX, minY, maxX, maxY;
-			if (layer.Map.RequiresLargeTileCulling)
-			{
-				// we expand our cameraClipBounds by the excess tile width/height of the largest tiles to ensure we include tiles whose
-				// origin might be outside of the cameraClipBounds
-				minX = layer.Map.WorldToTilePositionX(cameraClipBounds.Left - (layer.Map.MaxTileWidth * scale.X - tileWidth));
-				minY = layer.Map.WorldToTilePositionY(cameraClipBounds.Top - (layer.Map.MaxTileHeight * scale.Y - tileHeight));
-				maxX = layer.Map.WorldToTilePositionX(cameraClipBounds.Right + (layer.Map.MaxTileWidth * scale.X - tileWidth));
-				maxY = layer.Map.WorldToTilePositionY(cameraClipBounds.Bottom + (layer.Map.MaxTileHeight * scale.Y - tileHeight));
-			}
-			else
-			{
-				minX = layer.Map.WorldToTilePositionX(cameraClipBounds.Left);
-				minY = layer.Map.WorldToTilePositionY(cameraClipBounds.Top);
-				maxX = layer.Map.WorldToTilePositionX(cameraClipBounds.Right);
-				maxY = layer.Map.WorldToTilePositionY(cameraClipBounds.Bottom);
-			}
-
-
 
 			var color = Color.White;
 			color.A = (byte)(layer.Opacity * 255);
 
-			// loop through and draw all the non-culled tiles
-			for (var y = minY; y <= maxY; y++)
+			bool isometric = (layer.Map.Orientation == OrientationType.Isometric);
+
+			if (layer.Map.RequiresLargeTileCulling)
 			{
-				for (var x = minX; x <= maxX; x++)
+				// we expand our cameraClipBounds by the excess tile width/height of the largest tiles to ensure we include tiles whose
+				// origin might be outside of the cameraClipBounds
+				minX = layer.Map.WorldToTilePositionX(cameraClipBounds.Left - (layer.Map.MaxTileWidth * scale.X - tileWidth), !isometric);
+				minY = layer.Map.WorldToTilePositionY(cameraClipBounds.Top - (layer.Map.MaxTileHeight * scale.Y - tileHeight), !isometric);
+				maxX = layer.Map.WorldToTilePositionX(cameraClipBounds.Right + (layer.Map.MaxTileWidth * scale.X - tileWidth), !isometric);
+				maxY = layer.Map.WorldToTilePositionY(cameraClipBounds.Bottom + (layer.Map.MaxTileHeight * scale.Y - tileHeight), !isometric);
+			}
+			else
+			{
+				minX = layer.Map.WorldToTilePositionX(cameraClipBounds.Left, !isometric);
+				minY = layer.Map.WorldToTilePositionY(cameraClipBounds.Top, !isometric);
+				maxX = layer.Map.WorldToTilePositionX(cameraClipBounds.Right, !isometric);
+				maxY = layer.Map.WorldToTilePositionY(cameraClipBounds.Bottom, !isometric);
+			}
+
+			//Fix this
+			if (isometric)
+			{
+				minX--;
+				maxX++;
+			}
+
+
+			// loop through and draw all the non-culled tiles
+			if (!isometric)
+			{
+				for (var y = minY; y <= maxY; y++)
 				{
-					var tile = layer.GetTile(x, y);
-					if (tile != null)
-						RenderTile(tile, batcher, position, scale, tileWidth, tileHeight, color, layerDepth);
+					for (var x = minX; x <= maxX; x++)
+					{
+						var tile = layer.GetTile(x, y);
+						if (tile != null)
+							RenderTile(tile, batcher, position, scale, tileWidth, tileHeight, color, layerDepth);
+					}
+				}
+			}
+			else
+			{
+				for (float y = minY; y <= maxY; y += 0.5f)
+				{
+					for (int z = Math.Max(0,(int)(y + minX + 0.5f)); z <= maxX + y; z++) //z = x + y
+					{
+						int a = (int)(y * 2); //a = 2y obviously
+						if (a >= z) //is a-z >= 0
+						{
+							if ((z < layer.Width) && (a - z < layer.Height))
+							{
+								var tile = layer.GetTile(z, a - z); //equivelent to (x+y, y-x)
+								if (tile != null)
+									RenderTile(tile, batcher, position, scale, tileWidth, tileHeight, color, layerDepth);
+							}
+						}
+					}
 				}
 			}
 		}
@@ -136,7 +168,10 @@ namespace Nez.Tiled
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static void RenderTile(TmxLayerTile tile, Batcher batcher, Vector2 position, Vector2 scale, float tileWidth, float tileHeight, Color color, float layerDepth)
 		{
+
 			var gid = tile.Gid;
+
+			bool isometric = (tile.Tileset.Map.Orientation == OrientationType.Isometric);
 
 			// animated tiles (and tiles from image tilesets) will be inside the Tileset itself, in separate TmxTilesetTile
 			// objects, not to be confused with TmxLayerTiles which we are dealing with in this loop
@@ -148,9 +183,24 @@ namespace Nez.Tiled
 
 			// for the y position, we need to take into account if the tile is larger than the tileHeight and shift. Tiled uses
 			// a bottom-left coordinate system and MonoGame a top-left
-			var tx = tile.X * tileWidth;
-			var ty = tile.Y * tileHeight;
+
+			float tx;
+			float ty;
+
+			if (!isometric)
+			{
+				tx = tile.X * tileWidth;
+				ty = tile.Y * tileHeight;
+			}
+			else
+			{
+				tx = (tile.X - tile.Y) * tileWidth / 2;
+				ty = (tile.X + tile.Y) * tileHeight / 2;
+			}
 			var rotation = 0f;
+
+
+
 
 			var spriteEffects = SpriteEffects.None;
 			if (tile.HorizontalFlip)
@@ -190,7 +240,18 @@ namespace Nez.Tiled
 			// if we had no rotations (diagonal flipping) shift our y-coord to account for any non map.tileSize tiles due to
 			// Tiled being bottom-left origin
 			if (rotation == 0)
-				ty += (tileHeight - sourceRect.Height * scale.Y);
+			{
+				ty += (tileHeight - sourceRect.Height * scale.Y) / 2;
+				if (!isometric)
+				{
+					ty += (tileHeight - sourceRect.Height * scale.Y) / 2;
+				}
+			}
+
+			if (isometric)
+			{
+				//	tx += Screen.PreferredBackBufferWidth/4;
+			}
 
 			var pos = new Vector2(tx, ty) + position;
 
@@ -210,14 +271,14 @@ namespace Nez.Tiled
 				if (!obj.Visible)
 					continue;
 
-                // if we are not debug rendering, we only render Tile and Text types
-                if (!Core.DebugRenderEnabled)
-                {
-                    if (obj.ObjectType != TmxObjectType.Tile && obj.ObjectType != TmxObjectType.Text)
-                        continue;
-                }
+				// if we are not debug rendering, we only render Tile and Text types
+				if (!Core.DebugRenderEnabled)
+				{
+					if (obj.ObjectType != TmxObjectType.Tile && obj.ObjectType != TmxObjectType.Text)
+						continue;
+				}
 
-                var pos = position + new Vector2(obj.X, obj.Y) * scale;
+				var pos = position + new Vector2(obj.X, obj.Y) * scale;
 				switch (obj.ObjectType)
 				{
 					case TmxObjectType.Basic:
@@ -259,8 +320,8 @@ namespace Nez.Tiled
 						batcher.DrawString(Graphics.Instance.BitmapFont, obj.Text.Value, pos, obj.Text.Color, Mathf.Radians(obj.Rotation), Vector2.Zero, fontScale, SpriteEffects.None, layerDepth);
 						goto default;
 					default:
-                        if (Core.DebugRenderEnabled)
-                            batcher.DrawString(Graphics.Instance.BitmapFont, $"{obj.Name} ({obj.Type})", pos - new Vector2(0, 15), Color.Black);
+						if (Core.DebugRenderEnabled)
+							batcher.DrawString(Graphics.Instance.BitmapFont, $"{obj.Name} ({obj.Type})", pos - new Vector2(0, 15), Color.Black);
 						break;
 				}
 			}
